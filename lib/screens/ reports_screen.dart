@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'home_screen.dart';
+
 class ReportsScreen extends StatefulWidget {
 const ReportsScreen({super.key});
 
@@ -58,6 +60,7 @@ isLoading = true;
 await loadLeagues();
 await loadPlayers();
 await loadTeams();
+await loadExpenses();
 
 calculateFundSummary();
 
@@ -75,7 +78,6 @@ void calculateFundSummary() {
   // UNTIL EXPENSE MODULE ADDED
   // =========================
 
-  totalSpent = 0;
 
   for (var league in leagueList) {
     double entryFee =
@@ -202,6 +204,46 @@ teamList.add(teamData);
 });
 }
 }
+
+// =========================
+// LOAD EXPENSES
+// =========================
+
+  Future<void> loadExpenses() async {
+
+    final snapshot =
+    await databaseRef
+        .child('expenses')
+        .get();
+
+    totalSpent = 0;
+
+    if (snapshot.exists &&
+        snapshot.value != null) {
+
+      final data =
+      snapshot.value
+      as Map<dynamic, dynamic>;
+
+      data.forEach((key, value) {
+
+        Map<dynamic, dynamic> expense =
+        Map<dynamic, dynamic>.from(
+          value,
+        );
+
+        double amount =
+            double.tryParse(
+              expense['expenseAmount']
+                  ?.toString() ??
+                  '0',
+            ) ??
+                0;
+
+        totalSpent += amount;
+      });
+    }
+  }
 
 Future<void> loadLeagues() async {
 final snapshot =
@@ -451,15 +493,30 @@ Widget buildFundReport() {
       // TOTAL SPENT
       // =========================
 
-      buildReportCard(
-        title: 'Total Spent',
+      GestureDetector(
+        onTap: () {
 
-        amount:
-        '₹ ${totalSpent.toStringAsFixed(0)}',
+          Navigator.push(
+            context,
 
-        icon: Icons.money_off,
+            MaterialPageRoute(
+              builder:
+                  (context) =>
+              const ExpenseReportScreen(),
+            ),
+          );
+        },
 
-        color: Colors.red,
+        child: buildReportCard(
+          title: 'Total Spent',
+
+          amount:
+          '₹ ${totalSpent.toStringAsFixed(0)}',
+
+          icon: Icons.money_off,
+
+          color: Colors.red,
+        ),
       ),
 
       const SizedBox(height: 10),
@@ -1957,6 +2014,288 @@ class _PaymentDetailsScreenState
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// =========================
+// EXPENSE REPORT SCREEN
+// =========================
+
+class ExpenseReportScreen
+    extends StatefulWidget {
+
+  const ExpenseReportScreen({
+    super.key,
+  });
+
+  @override
+  State<ExpenseReportScreen>
+  createState() =>
+      _ExpenseReportScreenState();
+}
+
+class _ExpenseReportScreenState
+    extends State<ExpenseReportScreen> {
+
+  List<Map<dynamic, dynamic>>
+  expenseList = [];
+
+  bool isLoading = true;
+
+  double totalExpense = 0;
+
+  @override
+  void initState() {
+
+    super.initState();
+
+    loadExpenses();
+  }
+
+  Future<void> loadExpenses() async {
+
+    final snapshot =
+    await FirebaseDatabase
+        .instance
+        .ref()
+        .child('expenses')
+        .get();
+
+    expenseList.clear();
+
+    totalExpense = 0;
+
+    if (snapshot.exists &&
+        snapshot.value != null) {
+
+      Map<dynamic, dynamic> data =
+      snapshot.value
+      as Map<dynamic, dynamic>;
+
+      data.forEach((key, value) {
+
+        Map<dynamic, dynamic>
+        expense =
+        Map<dynamic, dynamic>.from(
+          value,
+        );
+
+        expenseList.add({
+          "firebaseKey": key,
+          ...expense,
+        });
+
+        double amount =
+            double.tryParse(
+              expense['expenseAmount']
+                  ?.toString() ??
+                  '0',
+            ) ??
+                0;
+
+        totalExpense += amount;
+      });
+
+      expenseList =
+          expenseList.reversed
+              .toList();
+    }
+
+    setState(() {
+
+      isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    return Scaffold(
+
+      appBar: AppBar(
+        title:
+        const Text(
+          'Expense Reports',
+        ),
+      ),
+
+      body:
+      isLoading
+          ? const Center(
+        child:
+        CircularProgressIndicator(),
+      )
+          : Column(
+        children: [
+
+          // =========================
+          // TOTAL EXPENSE
+          // =========================
+
+          Container(
+
+            width:
+            double.infinity,
+
+            margin:
+            const EdgeInsets.all(
+              16,
+            ),
+
+            padding:
+            const EdgeInsets.all(
+              20,
+            ),
+
+            decoration:
+            BoxDecoration(
+              color:
+              Colors.red
+                  .shade100,
+
+              borderRadius:
+              BorderRadius.circular(
+                20,
+              ),
+            ),
+
+            child: Column(
+              children: [
+
+                const Text(
+                  'Total Expenses',
+
+                  style:
+                  TextStyle(
+                    fontSize:
+                    18,
+
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 10,
+                ),
+
+                Text(
+                  '₹ ${totalExpense.toStringAsFixed(0)}',
+
+                  style:
+                  const TextStyle(
+                    fontSize:
+                    30,
+
+                    fontWeight:
+                    FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // =========================
+          // EXPENSE LIST
+          // =========================
+
+          Expanded(
+            child:
+            expenseList.isEmpty
+                ? const Center(
+              child: Text(
+                'No Expenses Added',
+              ),
+            )
+                : ListView.builder(
+              itemCount:
+              expenseList
+                  .length,
+
+              itemBuilder: (
+                  context,
+                  index,
+                  ) {
+
+                final expense =
+                expenseList[
+                index];
+
+                return Card(
+
+                  margin:
+                  const EdgeInsets.symmetric(
+                    horizontal:
+                    16,
+
+                    vertical:
+                    8,
+                  ),
+
+                  elevation:
+                  4,
+
+                  shape:
+                  RoundedRectangleBorder(
+                    borderRadius:
+                    BorderRadius.circular(
+                      18,
+                    ),
+                  ),
+
+                  child:
+                  ListTile(
+
+                    leading:
+                    CircleAvatar(
+                      backgroundColor:
+                      Colors.red
+                          .shade100,
+
+                      child:
+                      const Icon(
+                        Icons.receipt_long,
+
+                        color:
+                        Colors.red,
+                      ),
+                    ),
+
+                    title:
+                    Text(
+                      expense['expenseDescription'] ??
+                          '',
+                    ),
+
+                    subtitle:
+                    Text(
+                      'Date : ${expense['expenseDate'] ?? ''}',
+                    ),
+
+                    trailing:
+                    Text(
+                      '₹ ${expense['expenseAmount'] ?? 0}',
+
+                      style:
+                      const TextStyle(
+                        fontSize:
+                        18,
+
+                        fontWeight:
+                        FontWeight.bold,
+
+                        color:
+                        Colors.red,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
